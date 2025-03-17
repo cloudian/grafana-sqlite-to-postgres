@@ -17,6 +17,7 @@ var (
 	sqlitefile = app.Arg("sqlite-file", "Path to SQLite file being imported.").Required().File()
 	connstring = app.Arg("postgres-connection-string", "URL-format database connection string to use in the URL format (postgres://USERNAME:PASSWORD@HOST/DATABASE).").Required().String()
 	debug      = app.Flag("debug", "Enable debug level logging").Bool()
+	force      = app.Flag("force", "Always continue on errors").Bool()
 )
 
 func main() {
@@ -76,6 +77,13 @@ func main() {
 	}
 	log.Infoln("✅ char keyword transformed")
 
+	// Carry over existing cloudian_admin password
+	if err := sqlite.CustomSanitize(dumpPath, `(?msU)^(INSERT INTO "user" VALUES\(1,0\,'cloudian_admin'.*);$`,
+		[]byte(`$1 ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password, salt = EXCLUDED.salt;`),
+	); err != nil {
+		log.Fatalf("❌ %v - failed to carry over existing cloudian_admin password to the dump file.", err)
+	}
+
 	// Do HexDecoding
 	if err := sqlite.HexDecode(dumpPath); err != nil {
 		log.Fatalf("❌ %v - failed to wrap hex-encoded values in the dump file.", err)
@@ -89,7 +97,7 @@ func main() {
 	}
 
 	// Import the now-sanitized dump file into Postgres
-	if err := db.ImportDump(dumpPath); err != nil {
+	if err := db.ImportDump(dumpPath, *force); err != nil {
 		log.Fatalf("❌ %v - failed to import dump file to Postgres.", err)
 	}
 	log.Infoln("✅ Imported dump file to Postgres")

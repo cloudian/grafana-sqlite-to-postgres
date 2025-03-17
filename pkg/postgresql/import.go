@@ -32,9 +32,12 @@ func New(connString string, logger *logrus.Logger) (db DB, err error) {
 }
 
 // ImportDump imports a SQL dump file.
-func (db *DB) ImportDump(dumpFile string) error {
+func (db *DB) ImportDump(dumpFile string, force bool) error {
 
 	promptToContinue := func() bool {
+		if force {
+			return true
+		}
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("You seem to have encountered some errors. Would you still like to continue? [Y/n]: ")
 		text, _ := reader.ReadString('\n')

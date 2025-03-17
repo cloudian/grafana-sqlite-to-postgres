@@ -118,6 +118,10 @@ var TableChanges = []TableChange{
 				Name:    "with_credentials",
 				Default: "false",
 			},
+			{
+				Name:    "is_prunable",
+				Default: "false",
+			},
 		},
 	},
 	{

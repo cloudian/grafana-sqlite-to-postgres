@@ -9,14 +9,15 @@ ARCH := $(shell go env GOARCH)
 TAG := $(shell git tag | tail -1)
 PWD := $(shell pwd)
 
+CGO_OFF := CGO_ENABLED=0
 
 build:
-	go build -o dist/$(BIN)_$(OS)_$(ARCH)-$(VERSION) $(SRC_DIR)
+	$(CGO_OFF) go build -o dist/$(BIN)_$(OS)_$(ARCH)-$(VERSION) $(SRC_DIR)
 
 build-all: 
-	env GOOS=darwin GOARCH=amd64 go build -o dist/$(BIN)_darwin_amd64-$(VERSION) $(SRC_DIR)
-	env GOOS=linux GOARCH=amd64 go build -o dist/$(BIN)_linux_amd64-$(VERSION) $(SRC_DIR)
-	env GOOS=windows GOARCH=amd64 go build -o dist/$(BIN)_windows_amd64-$(VERSION).exe $(SRC_DIR)
+	env $(CGO_OFF) GOOS=darwin GOARCH=amd64 go build -o dist/$(BIN)_darwin_amd64-$(VERSION) $(SRC_DIR)
+	env $(CGO_OFF) GOOS=linux GOARCH=amd64 go build -o dist/$(BIN)_linux_amd64-$(VERSION) $(SRC_DIR)
+	env $(CGO_OFF) GOOS=windows GOARCH=amd64 go build -o dist/$(BIN)_windows_amd64-$(VERSION).exe $(SRC_DIR)
 
 # For manually releasing when Drone Cloud is having issues
 manual-release: build-all
