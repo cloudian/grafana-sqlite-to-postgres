@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 
 	// Postgres driver
@@ -64,9 +66,22 @@ func (db *DB) ImportDump(dumpFile string, force bool) error {
 		return err
 	}
 
+	// Example SQL statement: INSERT INTO "dashboard" VALUES(9,1,'prometheus-alerts','Prometheus Alerts','{"schemaVersion":17,"title":"Prometheus Alerts","uid":"prometheus_alerts","version":1}',1,'2025-07-10 05:52:20','2025-07-10 05:52:20',1,1,0,'',0,1,0,'prometheus_alerts',0,NULL,NULL);
+	folderInsertStmtRe := regexp.MustCompile(`^INSERT INTO "dashboard" VALUES\(\d+,.+,'(prometheus-alerts|node-alerts|service-alerts|cassandra-alerts|s3-alerts|disk-alerts)','(Prometheus Alerts|Node Alerts|Service Alerts|Cassandra Alerts|S3 Alerts|Disk Alerts)',.+,.+,.+,.+,.+,.+,.+,.+,.+,.+,.+,'(prometheus_alerts|node_alerts|service_alerts|cassandra_alerts|s3_alerts|disk_alerts)',.+,.+,.+\)$`)
+
 	sqlStmts := strings.Split(string(file), ";\n")
 
 	for _, stmt := range sqlStmts {
+		if folderInsertStmtRe.MatchString(stmt) {
+			newStmt, err := shiftFolderDashboardID(stmt)
+			if err != nil {
+				return fmt.Errorf("failed to modify folder dashboard insert statement: %v", err)
+			}
+
+			stmt = newStmt
+			db.log.Debugln("Modified folder dashboard insert:", newStmt)
+		}
+
 		if _, err := db.conn.Exec(stmt); err != nil {
 			// We can safely ignore "duplicate key value violates unique constraint" errors.
 			if strings.Contains(err.Error(), "duplicate key") {
@@ -229,4 +244,21 @@ ORDER BY S.relname;`
 
 	return nil
 
+}
+
+func shiftFolderDashboardID(sqlStmt string) (string, error) {
+	shiftValue := 100
+	idRe := regexp.MustCompile(`INSERT INTO "dashboard" VALUES\((\d+),`)
+	idMatch := idRe.FindStringSubmatch(sqlStmt)
+	if len(idMatch) > 1 {
+		oldID, err := strconv.Atoi(idMatch[1])
+		if err != nil {
+			return "", fmt.Errorf("couldn't convert '%v' to integer", idMatch[1])
+		}
+
+		newID := oldID + shiftValue
+		return idRe.ReplaceAllString(sqlStmt, fmt.Sprintf(`INSERT INTO "dashboard" VALUES(%d,`, newID)), nil
+	}
+
+	return sqlStmt, fmt.Errorf("couldn't find folder dashboard ID match in SQL statement '%v'", sqlStmt)
 }
